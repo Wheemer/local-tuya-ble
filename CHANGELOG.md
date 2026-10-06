@@ -1,3 +1,8 @@
+# 0.14.0b2 — Discovery validation (beta)
+
+- Require the Tuya advertisement discriminator in addition to a Tuya service UUID before opening discovery.
+- Keep unknown Tuya models automatically discoverable when they advertise either supported Tuya payload form.
+
 # 0.14.0b1 — Local product schemas (beta)
 
 - Add locally stored native product schemas and basic schema-driven entities for products without a specialized mapping.
