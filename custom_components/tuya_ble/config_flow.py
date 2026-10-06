@@ -54,12 +54,16 @@ from .tuya_ble.security import TuyaBLESecurityMaterial
 def _has_tuya_service_data(discovery: BluetoothServiceInfoBleak) -> bool:
     """Require Tuya service data before offering a discovered device.
 
-    Do not trust a callback, local name, or cached service UUID alone. Keep
-    both supported UUIDs and opaque/encrypted payloads eligible; discovery
-    cannot establish device ownership or model support from these bytes.
+    Do not trust a callback, local name, or cached service UUID alone. Tuya's
+    advertisement payload starts with a discriminator: 0 is the product-ID
+    form and 1 is the product-key/encrypted form. Both forms can represent an
+    unknown model, so the remainder of the payload must stay unrestricted.
     """
     return any(
-        len((discovery.service_data or {}).get(uuid, b"")) > 1 for uuid in SERVICE_UUIDS
+        (payload := (discovery.service_data or {}).get(uuid, b""))[:1]
+        in (b"\x00", b"\x01")
+        and len(payload) > 1
+        for uuid in SERVICE_UUIDS
     )
 
 
