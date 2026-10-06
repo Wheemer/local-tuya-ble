@@ -28,6 +28,7 @@ def advertisement(service_data=None, name="TY"):
         {},
         {SERVICE_UUIDS[0]: b""},
         {SERVICE_UUIDS[0]: b"\0"},
+        {SERVICE_UUIDS[0]: b"\2unrelated"},
         {"unrelated": b"data"},
     ],
 )
@@ -67,6 +68,7 @@ def test_dryer_and_uuid_only_are_rejected():
     assert _has_tuya_service_data(
         advertisement({SERVICE_UUIDS[0]: b"", SERVICE_UUIDS[1]: b"\1data"})
     )
+    assert not _has_tuya_service_data(advertisement({SERVICE_UUIDS[0]: b"\2data"}))
 
 
 def test_manual_discovery_filters_and_keeps_existing_entries():
