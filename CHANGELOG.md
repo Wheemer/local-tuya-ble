@@ -1,3 +1,8 @@
+# 0.14.0b3 — Locally pairable discovery (beta)
+
+- Show automatic setup cards only for unbound protocol-3 devices whose complete local pairing identity can be validated.
+- Keep unknown products discoverable without a product allowlist, while suppressing bound advertisements that cannot be adopted locally.
+
 # 0.14.0b2 — Discovery validation (beta)
 
 - Require the Tuya advertisement discriminator in addition to a Tuya service UUID before opening discovery.

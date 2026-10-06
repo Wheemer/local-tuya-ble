@@ -2,6 +2,9 @@
 
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
+import hashlib
+
+from Crypto.Cipher import AES
 import pytest
 from custom_components.tuya_ble.config_flow import (
     TuyaBLEConfigFlow,
@@ -10,14 +13,25 @@ from custom_components.tuya_ble.config_flow import (
 from custom_components.tuya_ble.tuya_ble import SERVICE_UUIDS
 
 
-def advertisement(service_data=None, name="TY"):
+def advertisement(service_data=None, name="TY", manufacturer_data=None):
     return SimpleNamespace(
         address="AA:BB:CC:DD:EE:01",
         name=name,
         device=SimpleNamespace(name=name),
         service_data=service_data,
         service_uuids=list(SERVICE_UUIDS),
-        manufacturer_data={},
+        manufacturer_data=manufacturer_data or {},
+    )
+
+
+def locally_pairable_advertisement(product=b"newmodel", bound=False):
+    key = hashlib.md5(product).digest()
+    manufacturer = (
+        bytes([0x80 if bound else 0, 3, 0, 0, 0, 0])
+        + AES.new(key, AES.MODE_CBC, key).encrypt(b"testidentity0001")
+    )
+    return advertisement(
+        {SERVICE_UUIDS[0]: b"\0" + product}, manufacturer_data={2000: manufacturer}
     )
 
 
@@ -42,9 +56,7 @@ async def test_invalid_advertisement_rejected_before_flow_identity(data):
     flow.async_set_unique_id.assert_not_awaited()
 
 
-@pytest.mark.parametrize("uuid", SERVICE_UUIDS)
-@pytest.mark.parametrize("payload", [b"\0newmodel", b"\1opaque-model-data"])
-async def test_unknown_models_discover_before_pairing_mode(uuid, payload):
+async def test_unknown_unbound_product_discovers_before_pairing_mode():
     flow = TuyaBLEConfigFlow()
     flow.async_set_unique_id = AsyncMock()
     flow._abort_if_unique_id_configured = Mock()
@@ -53,11 +65,20 @@ async def test_unknown_models_discover_before_pairing_mode(uuid, payload):
     with patch(
         "custom_components.tuya_ble.config_flow.pair_local", new_callable=AsyncMock
     ) as pair:
-        assert (await flow.async_step_bluetooth(advertisement({uuid: payload})))[
-            "type"
-        ] == "form"
+        result = await flow.async_step_bluetooth(
+            locally_pairable_advertisement(b"futuremodel")
+        )
+        assert result["type"] == "form"
         pair.assert_not_awaited()
     assert flow.async_show_form.call_args.kwargs["step_id"] == "local_pair"
+
+
+def test_bound_or_malformed_vendor_advertisements_are_rejected():
+    assert not _has_tuya_service_data(locally_pairable_advertisement(bound=True))
+    malformed = advertisement(
+        {SERVICE_UUIDS[0]: b"\0newmodel"}, manufacturer_data={2000: b"\0" * 22}
+    )
+    assert not _has_tuya_service_data(malformed)
 
 
 def test_dryer_and_uuid_only_are_rejected():
@@ -65,14 +86,12 @@ def test_dryer_and_uuid_only_are_rejected():
     dryer.manufacturer_data = {0x75: bytes.fromhex("421f3001010f00f0f10100")}
     assert not _has_tuya_service_data(dryer)
     assert not _has_tuya_service_data(advertisement())
-    assert _has_tuya_service_data(
-        advertisement({SERVICE_UUIDS[0]: b"", SERVICE_UUIDS[1]: b"\1data"})
-    )
+    assert _has_tuya_service_data(locally_pairable_advertisement())
     assert not _has_tuya_service_data(advertisement({SERVICE_UUIDS[0]: b"\2data"}))
 
 
 def test_manual_discovery_filters_and_keeps_existing_entries():
-    good = advertisement({SERVICE_UUIDS[0]: b"\0future"})
+    good = locally_pairable_advertisement(b"future")
     bad = advertisement({}, "Dryer")
     bad.address = "other"
     flow = TuyaBLEConfigFlow()
@@ -94,11 +113,10 @@ def test_manual_discovery_filters_and_keeps_existing_entries():
     assert not flow._discovered_devices
 
 
-@pytest.mark.parametrize("uuid", SERVICE_UUIDS)
-async def test_discovery_names_known_product_without_pairing_or_credentials(uuid):
+async def test_discovery_names_known_product_without_pairing_or_credentials():
     from custom_components.tuya_ble.devices import get_device_readable_name
 
-    discovery = advertisement({uuid: b"\0gvygg3m8"})
+    discovery = locally_pairable_advertisement(b"gvygg3m8")
     assert (
         await get_device_readable_name(discovery, None) == "SGS01 Plant Sensor DDEE01"
     )
