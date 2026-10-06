@@ -30,6 +30,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## [0.14.1](https://github.com/Wheemer/local-tuya-ble/compare/0.14.0...0.14.1) (2026-10-06)
+
+
+### Bug Fixes
+
+* only discover unbound locally pairable devices ([3df05eb](https://github.com/Wheemer/local-tuya-ble/commit/3df05eb77ef88efe8635ecfe7bf90de9b9a4fe8a))
+* only discover unbound locally pairable devices ([8e1d402](https://github.com/Wheemer/local-tuya-ble/commit/8e1d40219643868508a8cfe943aabb7adfeb958c))
+
 ## [0.12.0](https://github.com/ha-tuya-ble/ha_tuya_ble/compare/0.11.2...0.12.0) (2026-09-08)
 
 
