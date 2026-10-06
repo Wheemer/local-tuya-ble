@@ -25,7 +25,6 @@ from homeassistant.helpers.selector import (
     TextSelectorConfig,
     TextSelectorType,
 )
-from .tuya_ble import SERVICE_UUIDS
 from .const import (
     CONF_UUID,
     CONF_LOCAL_KEY,
@@ -45,25 +44,32 @@ from .const import (
     DOMAIN,
 )
 from .devices import devices_database, get_device_readable_name
-from .local_pairing import LocalPairingError, pair_local
+from .local_pairing import LocalPairingError, decode_identity, pair_local
 from .local_manager import local_options
 from .schema import parse_schema
 from .tuya_ble.security import TuyaBLESecurityMaterial
 
 
 def _has_tuya_service_data(discovery: BluetoothServiceInfoBleak) -> bool:
-    """Require Tuya service data before offering a discovered device.
+    """Return whether this is an unbound device supported by local setup.
 
-    Do not trust a callback, local name, or cached service UUID alone. Tuya's
-    advertisement payload starts with a discriminator: 0 is the product-ID
-    form and 1 is the product-key/encrypted form. Both forms can represent an
-    unknown model, so the remainder of the payload must stay unrestricted.
+    A Tuya service UUID and a format byte identify a vendor advertisement, but
+    they do not establish that the device is available to be adopted.  In
+    particular, bound devices advertise the same framing and cannot accept the
+    local provisioning exchange.  Require the complete protocol-3 identity
+    record and reject already-bound devices before Home Assistant creates a
+    discovery card.
+
+    This deliberately does not use a product allowlist: an unknown product
+    with a valid unbound local-pairing identity is still discovered.
     """
-    return any(
-        (payload := (discovery.service_data or {}).get(uuid, b""))[:1]
-        in (b"\x00", b"\x01")
-        and len(payload) > 1
-        for uuid in SERVICE_UUIDS
+    identity = decode_identity(
+        discovery.manufacturer_data or {}, discovery.service_data or {}
+    )
+    return (
+        identity is not None
+        and not identity["bound"]
+        and identity["protocol_major"] == 3
     )
 
 
